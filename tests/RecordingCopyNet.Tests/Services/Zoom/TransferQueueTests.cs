@@ -5,6 +5,16 @@ namespace RecordingCopyNet.Tests.Services.Zoom;
 
 public class TransferQueueTests
 {
+    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 2000)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (sw.ElapsedMilliseconds > timeoutMs) throw new TimeoutException("Condition not met within timeout");
+            await Task.Delay(10);
+        }
+    }
+
     [Fact]
     public async Task Enqueue_RunsUpToLimitConcurrently_ThenQueuesTheRest()
     {
@@ -33,12 +43,16 @@ public class TransferQueueTests
 
         completions[started[0]].SetResult();
         completions[started[1]].SetResult();
-        await Task.Delay(50);
+        await WaitUntil(() => { lock (started) return started.Count == 4; });
 
         Assert.Equal(4, started.Count); // the queued two have now started
 
         foreach (var tcs in completions) if (!tcs.Task.IsCompleted) tcs.SetResult();
-        await Task.Delay(50);
+        await WaitUntil(() =>
+        {
+            var info = queue.GetQueueInfo();
+            return info.Active == 0 && info.Queued == 0;
+        });
 
         var finalInfo = queue.GetQueueInfo();
         Assert.Equal(0, finalInfo.Active);
