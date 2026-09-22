@@ -7,6 +7,11 @@ builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfi
 builder.Services.PostConfigure<AppConfig>(cfg => cfg.ResolvePaths(AppContext.BaseDirectory));
 
 builder.Services.AddSingleton<Db>();
+builder.Services.AddSingleton<RecordingCopyNet.Security.IEncryptionKeyProvider, RecordingCopyNet.Security.FileEncryptionKeyProvider>();
+builder.Services.AddSingleton<RecordingCopyNet.Security.IFieldCipher>(sp =>
+    new RecordingCopyNet.Security.AesGcmFieldCipher(
+        sp.GetRequiredService<RecordingCopyNet.Security.IEncryptionKeyProvider>().GetOrCreateKey()));
+builder.Services.AddSingleton<ICredentialStore, CredentialStore>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
