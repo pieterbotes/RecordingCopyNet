@@ -14,7 +14,7 @@ Full task detail: `docs/superpowers/plans/2026-09-21-recordingcopy-dotnet-port.m
 - [x] Task 7: ZoomRecordingsService
 - [x] Task 8: ZoomDownloadService
 - [x] Task 9: Google Drive integration (GoogleAuthService + GoogleDriveService)
-- [ ] Task 10: TransferService
+- [x] Task 10: TransferService
 - [ ] Task 11: ZoomWsMessageRouter
 - [ ] Task 12: EventDedupTracker
 - [ ] Task 13: TransferQueue
