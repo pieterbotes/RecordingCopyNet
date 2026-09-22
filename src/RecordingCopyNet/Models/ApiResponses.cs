@@ -22,3 +22,10 @@ public record OkFalseErrorResponse(
 
 public record SubscribersResponse([property: JsonPropertyName("subscribers")] int Subscribers);
 public record RestartResponse([property: JsonPropertyName("status")] string Status);
+
+public record GoogleTestResponse(
+    [property: JsonPropertyName("ok")] bool Ok,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("sharedDrive")] bool SharedDrive,
+    [property: JsonPropertyName("impersonating")] string? Impersonating,
+    [property: JsonPropertyName("driveId")] string? DriveId);
