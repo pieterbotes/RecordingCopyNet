@@ -20,7 +20,10 @@ public class ZoomWsMessageRouter
             return new ZoomWsRoutedMessage(ZoomWsMessageKind.ParseError, null, null, Excerpt(rawJson));
         }
 
-        var module = root.TryGetProperty("module", out var moduleEl) ? moduleEl.GetString() : null;
+        if (root.TryGetProperty("module", out var moduleEl) && moduleEl.ValueKind != JsonValueKind.String)
+            return new ZoomWsRoutedMessage(ZoomWsMessageKind.ParseError, null, null, Excerpt(rawJson));
+
+        var module = root.TryGetProperty("module", out moduleEl) ? moduleEl.GetString() : null;
 
         if (module == "heartbeat")
             return new ZoomWsRoutedMessage(ZoomWsMessageKind.Heartbeat, null, null, null);
@@ -44,6 +47,9 @@ public class ZoomWsMessageRouter
             {
                 return new ZoomWsRoutedMessage(ZoomWsMessageKind.ParseError, null, null, Excerpt(contentEl.GetString() ?? ""));
             }
+
+            if (inner.TryGetProperty("event", out var eventValueEl) && eventValueEl.ValueKind != JsonValueKind.String)
+                return new ZoomWsRoutedMessage(ZoomWsMessageKind.ParseError, null, null, Excerpt(rawJson));
 
             var eventName = inner.TryGetProperty("event", out var eventEl) ? eventEl.GetString() : null;
             return eventName == "recording.completed"

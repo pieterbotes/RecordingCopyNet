@@ -74,4 +74,22 @@ public class ZoomWsMessageRouterTests
         var result = _router.Route("""{"module":"something_else"}""");
         Assert.Equal(ZoomWsMessageKind.Ignored, result.Kind);
     }
+
+    [Fact]
+    public void Route_ReturnsParseError_WhenModuleIsNotAString()
+    {
+        // Regression test for finding #6: .GetString() on a non-string `module` throws
+        // InvalidOperationException, which the surrounding JsonException handlers don't
+        // catch — it must be classified as ParseError, not escape Route() entirely.
+        var result = _router.Route("""{"module":123}""");
+        Assert.Equal(ZoomWsMessageKind.ParseError, result.Kind);
+    }
+
+    [Fact]
+    public void Route_ReturnsParseError_WhenUnwrappedEventIsNotAString()
+    {
+        var raw = """{"module":"message","content":"{\"event\":true,\"payload\":{}}"}""";
+        var result = _router.Route(raw);
+        Assert.Equal(ZoomWsMessageKind.ParseError, result.Kind);
+    }
 }
