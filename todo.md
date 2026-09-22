@@ -25,7 +25,7 @@ Full task detail: `docs/superpowers/plans/2026-09-21-recordingcopy-dotnet-port.m
 - [x] Task 18: GoogleController
 - [x] Task 19: TransferController
 - [x] Task 20: EventsController
-- [ ] Task 21: RequestsController
+- [x] Task 21: RequestsController
 - [ ] Task 22: Port the frontend (public/ → wwwroot/)
 - [ ] Task 23: Windows Service hosting
 - [ ] Task 24: README, final full-suite verification, manual end-to-end smoke test
