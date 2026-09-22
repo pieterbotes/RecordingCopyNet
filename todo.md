@@ -22,7 +22,7 @@ Full task detail: `docs/superpowers/plans/2026-09-21-recordingcopy-dotnet-port.m
 - [x] Task 15: ZoomWebSocketListener (BackgroundService glue)
 - [x] Task 16: SseWriter, AppVersion, CredentialsController, VersionController, SettingsController
 - [x] Task 17: ZoomController
-- [ ] Task 18: GoogleController
+- [x] Task 18: GoogleController
 - [ ] Task 19: TransferController
 - [ ] Task 20: EventsController
 - [ ] Task 21: RequestsController
