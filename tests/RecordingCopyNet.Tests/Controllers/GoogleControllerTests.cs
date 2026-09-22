@@ -3,6 +3,8 @@ using RecordingCopyNet.Controllers;
 using RecordingCopyNet.Data;
 using RecordingCopyNet.Models;
 using RecordingCopyNet.Services.Google;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Xunit;
 using DriveInfo = RecordingCopyNet.Models.DriveInfo;
 
@@ -73,6 +75,15 @@ public class GoogleControllerTests
         var controller = new GoogleController(new FakeCredentialStore(), new FakeGoogleDriveService());
         var result = Assert.IsType<OkObjectResult>(await controller.GetDrives());
         Assert.NotNull(result.Value);
+
+        // Verify JSON serialization uses lowercase "id"/"name" (via JsonPropertyName attributes)
+        // to match what the frontend expects
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = null };
+        var json = JsonSerializer.Serialize(result.Value, options);
+        Assert.Contains("\"id\"", json);
+        Assert.Contains("\"name\"", json);
+        Assert.DoesNotContain("\"Id\"", json);
+        Assert.DoesNotContain("\"Name\"", json);
     }
 
     [Fact]
