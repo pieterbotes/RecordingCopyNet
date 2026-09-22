@@ -76,11 +76,54 @@ public class CredentialsControllerTests
     public void Save_PersistsFields_AndClearsZoomTokenCache()
     {
         var (controller, store, zoomAuth, _, _) = Build();
-        var result = controller.Save("zoom", new Dictionary<string, string?> { ["client_id"] = "abc" });
+        var result = controller.Save("zoom", new Dictionary<string, string?>
+        {
+            ["account_id"] = "acct",
+            ["client_id"] = "abc",
+            ["client_secret"] = "shh",
+        });
 
         Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal("abc", store.Saved[CredentialType.Zoom]["client_id"]);
         Assert.True(zoomAuth.Cleared);
+    }
+
+    [Fact]
+    public void Save_ReturnsBadRequest_WhenRequiredFieldMissingOnFreshSave()
+    {
+        // Regression test for finding #1's required-field validation: a fresh Zoom
+        // credential save missing a required field (client_id) must 400 with a clear
+        // error naming the missing field, rather than silently persisting incomplete
+        // credentials.
+        var (controller, store, zoomAuth, _, _) = Build();
+        var result = controller.Save("zoom", new Dictionary<string, string?>
+        {
+            ["account_id"] = "acct",
+            ["client_secret"] = "shh",
+        });
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Contains("client_id", ((ErrorResponse)bad.Value!).Error);
+        Assert.False(store.Saved.ContainsKey(CredentialType.Zoom));
+        Assert.False(zoomAuth.Cleared);
+    }
+
+    [Fact]
+    public void Save_AllowsPartialUpdate_WhenRequiredFieldAlreadyStored()
+    {
+        // A partial rotation (e.g. just client_secret) must succeed as long as the
+        // other required fields are already present in the stored record.
+        var (controller, store, _, _, _) = Build();
+        store.Save(CredentialType.Zoom, new Dictionary<string, string?>
+        {
+            ["account_id"] = "acct",
+            ["client_id"] = "abc",
+            ["client_secret"] = "old-secret",
+        });
+
+        var result = controller.Save("zoom", new Dictionary<string, string?> { ["client_secret"] = "rotated" });
+
+        Assert.IsType<OkObjectResult>(result.Result);
     }
 
     [Fact]

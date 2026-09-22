@@ -34,18 +34,31 @@ public class CredentialStore : ICredentialStore
 
         foreach (var def in CredentialSchema.Fields[type])
         {
-            if (!fields.TryGetValue(def.Name, out var value) || value is null) continue;
+            // A key ENTIRELY ABSENT from `fields` means "don't touch this column" (needed
+            // for partial credential rotation). A key present with an explicit null value
+            // means "clear this column to NULL" — the frontend's settings-save contract
+            // (see public/js/settings.js) relies on this distinction, so both must be
+            // handled, not just the non-null case.
+            if (!fields.TryGetValue(def.Name, out var value)) continue;
             var column = CredentialSchema.ColumnName(def);
             columns.Add(column);
             var paramName = $"@{column}";
             placeholders.Add(paramName);
             updateClauses.Add($"{column} = excluded.{column}");
-            cmd.Parameters.AddWithValue(paramName, def.Encrypted ? _cipher.Encrypt(value) : value);
+            if (value is null)
+                cmd.Parameters.AddWithValue(paramName, DBNull.Value);
+            else
+                cmd.Parameters.AddWithValue(paramName, def.Encrypted ? _cipher.Encrypt(value) : value);
         }
 
         var insertClause = $"INSERT INTO {table} ({string.Join(", ", columns)}) VALUES ({string.Join(", ", placeholders)})";
-        var conflictClause = string.Join(", ", updateClauses);
-        cmd.CommandText = $"{insertClause} ON CONFLICT(id) DO UPDATE SET {conflictClause}";
+        // If nothing was present in `fields` at all, there's no SET clause to write —
+        // `DO UPDATE SET` with an empty clause list is a SQLite syntax error, so fall back
+        // to a no-op conflict action instead.
+        var conflictAction = updateClauses.Count > 0
+            ? $"DO UPDATE SET {string.Join(", ", updateClauses)}"
+            : "DO NOTHING";
+        cmd.CommandText = $"{insertClause} ON CONFLICT(id) {conflictAction}";
         cmd.ExecuteNonQuery();
     }
 
