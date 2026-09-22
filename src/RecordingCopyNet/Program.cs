@@ -13,6 +13,7 @@ builder.Services.AddSingleton<RecordingCopyNet.Security.IFieldCipher>(sp =>
         sp.GetRequiredService<RecordingCopyNet.Security.IEncryptionKeyProvider>().GetOrCreateKey()));
 builder.Services.AddSingleton<ICredentialStore, CredentialStore>();
 builder.Services.AddSingleton<IEventsRepository, EventsRepository>();
+builder.Services.AddSingleton<IRequestsRepository, RequestsRepository>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
