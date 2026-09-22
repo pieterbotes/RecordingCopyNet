@@ -9,7 +9,7 @@ Full task detail: `docs/superpowers/plans/2026-09-21-recordingcopy-dotnet-port.m
 - [x] Task 2: SQLite schema (Db.cs)
 - [x] Task 3: Credential encryption and store (CredentialStore)
 - [x] Task 4: EventsRepository
-- [ ] Task 5: RequestsRepository
+- [x] Task 5: RequestsRepository
 - [ ] Task 6: ZoomAuthService
 - [ ] Task 7: ZoomRecordingsService
 - [ ] Task 8: ZoomDownloadService
