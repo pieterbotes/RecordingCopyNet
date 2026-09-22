@@ -108,16 +108,27 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
         await _lifecycleLock.WaitAsync();
         try
         {
-            // Idempotency guard: cancel+dispose any previous connection attempt/loop before
-            // starting a new one, so calling this twice — even from two truly concurrent
-            // callers — can never leave two live ConnectLoopAsync chains running. A plain
-            // read/cancel/dispose is safe here (no Interlocked needed) because
-            // _lifecycleLock serializes all Start/Stop access to _connectionCts.
+            // Idempotency guard: cancel any previous connection attempt/loop and wait for it
+            // to actually finish before disposing its CTS and starting a new one — so
+            // calling this twice, even from two truly concurrent callers, can never leave
+            // two live ConnectLoopAsync chains running. Mirrors StopConnectionAsync's
+            // cancel-await-dispose ordering: disposing immediately after Cancel() risks an
+            // unobserved ObjectDisposedException inside the old loop's Task.Delay(ct). A
+            // plain read (no Interlocked) is safe here because _lifecycleLock serializes
+            // all Start/Stop access to _connectionCts/_connectionLoopTask.
             if (_connectionCts != null)
             {
                 _connectionCts.Cancel();
+
+                if (_connectionLoopTask != null)
+                {
+                    try { await _connectionLoopTask; }
+                    catch { /* the loop already handles and logs its own errors */ }
+                }
+
                 _connectionCts.Dispose();
                 _connectionCts = null;
+                _connectionLoopTask = null;
             }
 
             IReadOnlyDictionary<string, string?>? settings;

@@ -84,6 +84,37 @@ public class ZoomWebSocketListenerTests
         public void Delete(CredentialType type) { }
     }
 
+    // Blocks the FIRST call to Load() until explicitly released, so a test can prove a
+    // second, concurrently-launched call to StartConnectionAsync genuinely stays blocked
+    // on _lifecycleLock — not just "runs after" because nothing suspended along the way.
+    // Every subsequent Load() call (the reconnect loop's own periodic re-read, etc.)
+    // passes straight through.
+    private class GateFirstLoadCredentialStore : ICredentialStore
+    {
+        public Dictionary<string, string?>? SettingsFields;
+        private readonly ManualResetEventSlim _firstCallEntered = new(false);
+        private readonly ManualResetEventSlim _releaseFirstCall = new(false);
+        private int _callCount;
+
+        public bool Exists(CredentialType type) => type == CredentialType.Settings && SettingsFields != null;
+        public void Save(CredentialType type, IReadOnlyDictionary<string, string?> fields) { }
+        public void Delete(CredentialType type) { }
+
+        public IReadOnlyDictionary<string, string?>? Load(CredentialType type)
+        {
+            if (Interlocked.Increment(ref _callCount) == 1)
+            {
+                _firstCallEntered.Set();
+                if (!_releaseFirstCall.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("Test never released the gated first Load() call.");
+            }
+            return type == CredentialType.Settings ? SettingsFields : null;
+        }
+
+        public void WaitForFirstCallEntered() => _firstCallEntered.Wait(TimeSpan.FromSeconds(5));
+        public void ReleaseFirstCall() => _releaseFirstCall.Set();
+    }
+
     private static ZoomWebSocketListener BuildListener(
         FakeEventsRepository events, FakeCredentialStore store, FakeTransferService transfer,
         FakeZoomRecordingsService? recordings = null, EventDedupTracker? dedup = null)
@@ -269,28 +300,48 @@ public class ZoomWebSocketListenerTests
     }
 
     [Fact]
-    public async Task StartConnectionAsync_TrueConcurrentCalls_SerializeAndLeaveExactlyOneLiveConnectionCts()
+    public async Task StartConnectionAsync_ConcurrentCalls_SecondCallerGenuinelyBlocksOnLockUntilFirstReleases()
     {
-        // Fires two StartConnectionAsync() calls via Task.WhenAll so they race for real
-        // (different thread-pool threads, not just sequential re-entry) against the
-        // _lifecycleLock semaphore. An unparsable URL keeps each attempt's own work
-        // synchronous/fast (no real socket), so this isolates the lock's serialization
-        // behavior rather than real network timing.
-        var store = new FakeCredentialStore { SettingsFields = new() { ["zoom_websocket_url"] = "not a url" } };
-        var listener = BuildListener(new FakeEventsRepository(), store, new FakeTransferService());
+        // Proves _lifecycleLock actually serializes two overlapping StartConnectionAsync
+        // callers, not just "the second one happens to run after the first because nothing
+        // suspended along the way" (which is what a plain Task.WhenAll of two fully-
+        // synchronous calls would give you — that's indistinguishable from the buggy,
+        // unlocked round-1 code and doesn't prove anything about the lock).
+        //
+        // The gated credential store blocks the FIRST call's settings read until we
+        // explicitly release it, forcing it to be genuinely mid-flight — still holding
+        // _lifecycleLock — while we launch the second call on another thread. We then
+        // assert the second call has NOT completed after a generous wait, which it could
+        // only do if it were truly blocked waiting to acquire the semaphore (an unlocked
+        // implementation would let it race ahead and complete almost immediately, since
+        // its own settings read isn't gated).
+        var store = new GateFirstLoadCredentialStore { SettingsFields = new() { ["zoom_websocket_url"] = "not a url" } };
+        var listener = new ZoomWebSocketListener(
+            new NoopZoomAuthService(),
+            new FakeZoomRecordingsService(),
+            new FakeTransferService(),
+            store,
+            new FakeEventsRepository(),
+            new ZoomWsMessageRouter(),
+            new EventDedupTracker(TimeProvider.System),
+            new TransferQueue(limit: 3),
+            new SseBroadcastHub(),
+            NullLogger<ZoomWebSocketListener>.Instance);
 
-        var ex = await Record.ExceptionAsync(() =>
-            Task.WhenAll(listener.StartConnectionAsync(), listener.StartConnectionAsync()));
-        await Task.Delay(50); // let both fire-and-forget connect loops settle
+        var firstCallTask = Task.Run(() => listener.StartConnectionAsync());
+        store.WaitForFirstCallEntered(); // first call is now blocked inside Load(), lock held
 
+        var secondCallTask = Task.Run(() => listener.StartConnectionAsync());
+        await Task.Delay(150); // generous window for an unlocked second call to race ahead
+
+        Assert.False(secondCallTask.IsCompleted); // must still be waiting on the semaphore
+
+        store.ReleaseFirstCall();
+        var ex = await Record.ExceptionAsync(() => Task.WhenAll(firstCallTask, secondCallTask));
         Assert.Null(ex);
 
-        // Exactly one CTS should have survived: whichever call the semaphore let run
-        // second cancelled+disposed the other's CTS (under the lock, no race) before
-        // installing its own. If the two calls had instead raced on a plain field write
-        // (the round-1 bug this test targets), the loser's CTS would still be reachable
-        // as the "final" _connectionCts while never being cancelled/disposed — or the
-        // final CTS itself could already be disposed by the other racing writer.
+        // With serialization proven, the final state should also be consistent: exactly
+        // one live, non-cancelled, non-disposed CTS.
         var finalCts = listener.ConnectionCtsForTests;
         Assert.NotNull(finalCts);
         Assert.False(finalCts!.IsCancellationRequested);
