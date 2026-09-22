@@ -1,0 +1,13 @@
+using System.Text.Json.Serialization;
+
+namespace RecordingCopyNet.Models;
+
+public record ConfiguredResponse([property: JsonPropertyName("configured")] bool Configured);
+public record OkResponse([property: JsonPropertyName("ok")] bool Ok);
+public record ErrorResponse([property: JsonPropertyName("error")] string Error);
+public record VersionResponse([property: JsonPropertyName("version")] string Version);
+
+public record SettingsResponse(
+    [property: JsonPropertyName("settings")] IReadOnlyDictionary<string, string?> Settings,
+    [property: JsonPropertyName("zoomConfigured")] bool ZoomConfigured,
+    [property: JsonPropertyName("googleConfigured")] bool GoogleConfigured);
