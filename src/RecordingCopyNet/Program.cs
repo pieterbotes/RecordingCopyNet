@@ -24,6 +24,9 @@ builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.IZoomAuthService>(s
 builder.Services.AddHttpClient<RecordingCopyNet.Services.Zoom.IZoomRecordingsService, RecordingCopyNet.Services.Zoom.ZoomRecordingsService>();
 builder.Services.AddHttpClient<RecordingCopyNet.Services.Zoom.IZoomDownloadService, RecordingCopyNet.Services.Zoom.ZoomDownloadService>();
 
+builder.Services.AddSingleton<RecordingCopyNet.Services.Google.IGoogleAuthService, RecordingCopyNet.Services.Google.GoogleAuthService>();
+builder.Services.AddSingleton<RecordingCopyNet.Services.Google.IGoogleDriveService, RecordingCopyNet.Services.Google.GoogleDriveService>();
+
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
     var port = context.Configuration.GetSection("AppConfig")["Port"];
