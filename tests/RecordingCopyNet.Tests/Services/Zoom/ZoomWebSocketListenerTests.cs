@@ -74,6 +74,16 @@ public class ZoomWebSocketListenerTests
         public void ClearTokenCache() { }
     }
 
+    // Simulates a corrupt/locked settings store (e.g. SQLite row error) to prove
+    // StartConnectionAsync's settings read is guarded and never faults the host.
+    private class ThrowingCredentialStore : ICredentialStore
+    {
+        public bool Exists(CredentialType type) => false;
+        public void Save(CredentialType type, IReadOnlyDictionary<string, string?> fields) { }
+        public IReadOnlyDictionary<string, string?>? Load(CredentialType type) => throw new InvalidOperationException("db locked");
+        public void Delete(CredentialType type) { }
+    }
+
     private static ZoomWebSocketListener BuildListener(
         FakeEventsRepository events, FakeCredentialStore store, FakeTransferService transfer,
         FakeZoomRecordingsService? recordings = null, EventDedupTracker? dedup = null)
@@ -210,6 +220,51 @@ public class ZoomWebSocketListenerTests
 
         await listener.StartConnectionAsync();
 
+        Assert.Equal("disconnected", listener.GetStatus());
+    }
+
+    [Fact]
+    public async Task StartConnectionAsync_CalledTwice_CancelsAndDisposesPreviousConnectionAttempt()
+    {
+        // An unparsable URL makes TryConnectOnceAsync fail synchronously (no real socket),
+        // while still exercising the real StartConnectionAsync code path that creates and
+        // tracks a CancellationTokenSource for the connection attempt/loop.
+        var store = new FakeCredentialStore { SettingsFields = new() { ["zoom_websocket_url"] = "not a url" } };
+        var listener = BuildListener(new FakeEventsRepository(), store, new FakeTransferService());
+
+        await listener.StartConnectionAsync();
+        var firstCts = listener.ConnectionCtsForTests;
+        Assert.NotNull(firstCts);
+
+        await listener.StartConnectionAsync();
+        var secondCts = listener.ConnectionCtsForTests;
+
+        Assert.NotNull(secondCts);
+        Assert.NotSame(firstCts, secondCts);
+        Assert.True(firstCts!.IsCancellationRequested);
+        Assert.Throws<ObjectDisposedException>(() => firstCts.Token);
+
+        await listener.StopConnectionAsync();
+    }
+
+    [Fact]
+    public async Task StartConnectionAsync_WhenSettingsReadThrows_StaysDisconnectedWithoutPropagating()
+    {
+        var listener = new ZoomWebSocketListener(
+            new NoopZoomAuthService(),
+            new FakeZoomRecordingsService(),
+            new FakeTransferService(),
+            new ThrowingCredentialStore(),
+            new FakeEventsRepository(),
+            new ZoomWsMessageRouter(),
+            new EventDedupTracker(TimeProvider.System),
+            new TransferQueue(limit: 3),
+            new SseBroadcastHub(),
+            NullLogger<ZoomWebSocketListener>.Instance);
+
+        var ex = await Record.ExceptionAsync(() => listener.StartConnectionAsync());
+
+        Assert.Null(ex);
         Assert.Equal("disconnected", listener.GetStatus());
     }
 }

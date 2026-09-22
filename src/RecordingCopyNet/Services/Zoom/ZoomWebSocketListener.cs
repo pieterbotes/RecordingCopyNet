@@ -86,9 +86,32 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
 
     public int SseSubscriberCount => _sseHub.SubscriberCount;
 
+    // Test seam only (see HandleRawMessageAsync's header comment for the pattern):
+    // lets tests confirm StartConnectionAsync's idempotency guard actually swaps in a
+    // fresh CancellationTokenSource and cancels+disposes the previous one, without
+    // needing a real socket.
+    internal CancellationTokenSource? ConnectionCtsForTests => _connectionCts;
+
     public Task StartConnectionAsync()
     {
-        var settings = _credentialStore.Load(CredentialType.Settings);
+        // Idempotency guard: cancel+dispose any previous connection attempt/loop before
+        // starting a new one, so calling this twice without an intervening
+        // StopConnectionAsync can never leave two live ConnectLoopAsync chains running.
+        var previous = Interlocked.Exchange(ref _connectionCts, null);
+        if (previous != null) { previous.Cancel(); previous.Dispose(); }
+
+        IReadOnlyDictionary<string, string?>? settings;
+        try
+        {
+            settings = _credentialStore.Load(CredentialType.Settings);
+        }
+        catch (Exception ex)
+        {
+            Debug($"Failed to read settings: {ex.Message}");
+            SetStatus("disconnected");
+            return Task.CompletedTask;
+        }
+
         var wsUrl = settings != null && settings.TryGetValue("zoom_websocket_url", out var url) ? url : null;
         if (string.IsNullOrEmpty(wsUrl))
         {
@@ -107,6 +130,8 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
     {
         Interlocked.Increment(ref _generation); // invalidates any in-flight reconnect attempt
         _connectionCts?.Cancel();
+        _connectionCts?.Dispose();
+        _connectionCts = null;
 
         var ws = _ws;
         _ws = null;
