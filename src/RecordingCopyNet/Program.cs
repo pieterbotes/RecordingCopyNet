@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using RecordingCopyNet.Config;
 using RecordingCopyNet.Data;
 
@@ -14,6 +15,12 @@ builder.Services.AddSingleton<RecordingCopyNet.Security.IFieldCipher>(sp =>
 builder.Services.AddSingleton<ICredentialStore, CredentialStore>();
 builder.Services.AddSingleton<IEventsRepository, EventsRepository>();
 builder.Services.AddSingleton<IRequestsRepository, RequestsRepository>();
+builder.Services.AddHttpClient("ZoomAuth");
+builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.IZoomAuthService>(sp =>
+    new RecordingCopyNet.Services.Zoom.ZoomAuthService(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("ZoomAuth"),
+        sp.GetRequiredService<ICredentialStore>(),
+        sp.GetRequiredService<IOptions<AppConfig>>()));
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
