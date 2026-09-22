@@ -283,6 +283,13 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
         {
             await ReceiveLoopAsync(ws, ct);
         }
+        catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException && ct.IsCancellationRequested)
+        {
+            // Expected, intentional shutdown: StopConnectionAsync disposed the socket
+            // while ReceiveLoopAsync was still awaiting ReceiveAsync. Not a real error —
+            // log at low noise instead of the user-visible "Error: ..." line.
+            Debug("Connection closed");
+        }
         catch (Exception ex)
         {
             lock (_stateLock) _errors++;
@@ -317,7 +324,21 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
 
             var raw = Encoding.UTF8.GetString(messageStream.ToArray());
             lock (_stateLock) _messages++;
-            await HandleRawMessageAsync(raw, ct);
+
+            // A malformed individual message (e.g. recording.completed missing an
+            // expected field) must not tear down the whole connection — that would drop
+            // a healthy socket for a 5-second reconnect cycle over one bad payload.
+            // TryGetProperty guards below handle the expected-malformed-input case
+            // explicitly; this is a last-resort backstop for anything else.
+            try
+            {
+                await HandleRawMessageAsync(raw, ct);
+            }
+            catch (Exception ex)
+            {
+                lock (_stateLock) _errors++;
+                Debug($"Error handling message: {ex.Message}");
+            }
         }
     }
 
@@ -383,7 +404,12 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
             return;
         }
 
-        var uuid = payload.GetProperty("uuid").GetString()!;
+        if (!payload.TryGetProperty("uuid", out var uuidEl) || uuidEl.ValueKind != JsonValueKind.String)
+        {
+            Debug("recording.completed with missing/invalid uuid, ignoring");
+            return;
+        }
+        var uuid = uuidEl.GetString()!;
         var hostEmail = payload.TryGetProperty("host_email", out var hostEmailEl) ? hostEmailEl.GetString() : null;
         var topic = payload.TryGetProperty("topic", out var topicEl) ? topicEl.GetString() : null;
 
@@ -391,12 +417,8 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
 
         var eventId = _eventsRepo.LogEvent("recording.completed", uuid, topic, hostEmail, msg.GetRawText());
 
-        if (!_dedup.TryMarkProcessed(uuid))
-        {
-            Debug($"Already processed {uuid}, skipping");
-            _eventsRepo.UpdateEvent(eventId, new EventUpdateFields { Status = "skipped", SkipReason = "duplicate" });
-            return;
-        }
+        // NOTE: dedup is intentionally marked AFTER the user-filter below passes, not
+        // here — see the comment at that call site for why (matches lib/zoom/websocket.js).
 
         var settings = _credentialStore.Load(CredentialType.Settings);
         var allUsers = settings != null && settings.TryGetValue("transfer_all_users", out var au) && au == "true";
@@ -409,7 +431,7 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
         else if (!string.IsNullOrEmpty(configuredUser))
         {
             var resolvedEmail = hostEmail;
-            if (string.IsNullOrEmpty(resolvedEmail) && payload.TryGetProperty("host_id", out var hostIdEl))
+            if (string.IsNullOrEmpty(resolvedEmail) && payload.TryGetProperty("host_id", out var hostIdEl) && hostIdEl.ValueKind == JsonValueKind.String)
                 resolvedEmail = await _zoomRecordings.GetUserEmailAsync(hostIdEl.GetString()!, ct);
 
             if (!string.IsNullOrEmpty(resolvedEmail) && !resolvedEmail.Equals(configuredUser, StringComparison.OrdinalIgnoreCase))
@@ -418,6 +440,17 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
                 _eventsRepo.UpdateEvent(eventId, new EventUpdateFields { Status = "skipped", SkipReason = $"wrong user: {resolvedEmail}" });
                 return;
             }
+        }
+
+        // Only mark the uuid as processed once we've actually decided to attempt the
+        // transfer — a "wrong user" event above must NOT occupy the dedup slot, or a
+        // later re-delivery (e.g. after default_zoom_user is changed to match) would be
+        // silently dropped as a duplicate instead of correctly processed.
+        if (!_dedup.TryMarkProcessed(uuid))
+        {
+            Debug($"Already processed {uuid}, skipping");
+            _eventsRepo.UpdateEvent(eventId, new EventUpdateFields { Status = "skipped", SkipReason = "duplicate" });
+            return;
         }
 
         var meetingId = uuid;

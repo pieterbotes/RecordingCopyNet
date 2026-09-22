@@ -224,6 +224,52 @@ public class ZoomWebSocketListenerTests
     }
 
     [Fact]
+    public async Task HandleRawMessageAsync_RecordingCompletedMissingUuid_DoesNotThrow_AndSkipsGracefully()
+    {
+        // Regression test for finding #5: a malformed recording.completed payload
+        // (missing uuid) must be handled explicitly and gracefully, not crash the
+        // whole receive loop / connection.
+        var events = new FakeEventsRepository();
+        var listener = BuildListener(events, new FakeCredentialStore { SettingsFields = new() }, new FakeTransferService());
+        var raw = """{"module":"message","content":"{\"event\":\"recording.completed\",\"payload\":{\"object\":{\"topic\":\"No UUID\"}}}"}""";
+
+        var ex = await Record.ExceptionAsync(() => listener.HandleRawMessageAsync(raw, CancellationToken.None));
+
+        Assert.Null(ex);
+        Assert.Empty(events.Rows); // no event logged — bailed out before LogEvent
+    }
+
+    [Fact]
+    public async Task HandleRawMessageAsync_WrongUserRedeliveredAfterUserChange_IsProcessed_NotSkippedAsDuplicate()
+    {
+        // Regression test for finding #9: dedup must be marked AFTER the user-filter
+        // passes, not before. A "wrong user" event must not occupy the dedup slot, so a
+        // later redelivery for the same uuid — after the configured user changes to
+        // match — is correctly processed instead of being silently dropped as a
+        // "duplicate".
+        var events = new FakeEventsRepository();
+        var transfer = new FakeTransferService();
+        var store = new FakeCredentialStore { SettingsFields = new() { ["default_zoom_user"] = "me@x.com" } };
+        var listener = BuildListener(events, store, transfer);
+        var raw = RecordingCompletedTemplate.Replace("__UUID__", "uuid-reuse").Replace("__HOST__", "other@x.com");
+
+        await listener.HandleRawMessageAsync(raw, CancellationToken.None);
+        await Task.Delay(50);
+        Assert.Equal("skipped", events.Rows.Values.Single().Status);
+        Assert.Contains("wrong user", events.Rows.Values.Single().SkipReason);
+
+        // Configured user now matches; redeliver the same uuid.
+        store.SettingsFields!["default_zoom_user"] = "other@x.com";
+        await listener.HandleRawMessageAsync(raw, CancellationToken.None);
+        await Task.Delay(50);
+
+        Assert.Equal(2, events.Rows.Count);
+        var second = events.Rows.Values.Last();
+        Assert.NotEqual("duplicate", second.SkipReason);
+        Assert.Contains("uuid-reuse", transfer.CalledWithMeetingIds);
+    }
+
+    [Fact]
     public async Task HandleRawMessageAsync_HeartbeatIgnoredAndParseError_UpdateCountersWithoutThrowing()
     {
         var listener = BuildListener(new FakeEventsRepository(), new FakeCredentialStore { SettingsFields = new() }, new FakeTransferService());
