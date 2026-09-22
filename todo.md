@@ -5,7 +5,7 @@ Full task detail: `docs/superpowers/plans/2026-09-21-recordingcopy-dotnet-port.m
 
 ## Tasks
 
-- [ ] Task 1: Solution scaffolding, AppConfig, minimal host
+- [x] Task 1: Solution scaffolding, AppConfig, minimal host
 - [ ] Task 2: SQLite schema (Db.cs)
 - [ ] Task 3: Credential encryption and store (CredentialStore)
 - [ ] Task 4: EventsRepository
