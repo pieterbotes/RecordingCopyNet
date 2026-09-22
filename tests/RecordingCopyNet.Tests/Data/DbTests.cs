@@ -44,6 +44,19 @@ public class DbTests : IDisposable
         _db.InitializeSchema(); // must not throw on second call
     }
 
+    [Fact]
+    public void InitializeSchema_EnablesWalJournalMode()
+    {
+        _db.InitializeSchema();
+
+        using var conn = _db.CreateOpenConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "PRAGMA journal_mode;";
+        var mode = (string)cmd.ExecuteScalar()!;
+
+        Assert.Equal("wal", mode, ignoreCase: true);
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();

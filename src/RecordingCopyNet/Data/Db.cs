@@ -32,6 +32,16 @@ public class Db
     public void InitializeSchema()
     {
         using var conn = CreateOpenConnection();
+
+        // WAL (Write-Ahead Logging) mode significantly reduces write contention versus
+        // the default rollback-journal mode — multiple concurrent transfers plus HTTP
+        // requests all write to this same SQLite database.
+        using (var pragma = conn.CreateCommand())
+        {
+            pragma.CommandText = "PRAGMA journal_mode=WAL;";
+            pragma.ExecuteNonQuery();
+        }
+
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS events (
