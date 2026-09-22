@@ -26,6 +26,7 @@ builder.Services.AddHttpClient<RecordingCopyNet.Services.Zoom.IZoomDownloadServi
 
 builder.Services.AddSingleton<RecordingCopyNet.Services.Google.IGoogleAuthService, RecordingCopyNet.Services.Google.GoogleAuthService>();
 builder.Services.AddSingleton<RecordingCopyNet.Services.Google.IGoogleDriveService, RecordingCopyNet.Services.Google.GoogleDriveService>();
+builder.Services.AddSingleton<RecordingCopyNet.Services.ITransferService, RecordingCopyNet.Services.TransferService>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
