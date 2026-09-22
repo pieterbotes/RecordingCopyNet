@@ -21,6 +21,7 @@ builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.IZoomAuthService>(s
         sp.GetRequiredService<IHttpClientFactory>().CreateClient("ZoomAuth"),
         sp.GetRequiredService<ICredentialStore>(),
         sp.GetRequiredService<IOptions<AppConfig>>()));
+builder.Services.AddHttpClient<RecordingCopyNet.Services.Zoom.IZoomRecordingsService, RecordingCopyNet.Services.Zoom.ZoomRecordingsService>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
