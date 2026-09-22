@@ -12,6 +12,7 @@ builder.Services.AddSingleton<RecordingCopyNet.Security.IFieldCipher>(sp =>
     new RecordingCopyNet.Security.AesGcmFieldCipher(
         sp.GetRequiredService<RecordingCopyNet.Security.IEncryptionKeyProvider>().GetOrCreateKey()));
 builder.Services.AddSingleton<ICredentialStore, CredentialStore>();
+builder.Services.AddSingleton<IEventsRepository, EventsRepository>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
