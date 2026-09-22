@@ -46,7 +46,8 @@ builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.IZoomWebSocketContr
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
     var port = context.Configuration.GetSection("AppConfig")["Port"];
-    options.ListenAnyIP(int.Parse(port ?? "3900"));
+    if (!int.TryParse(port, out var parsedPort)) parsedPort = 3900;
+    options.ListenAnyIP(parsedPort);
 });
 
 builder.Services.AddControllers()
