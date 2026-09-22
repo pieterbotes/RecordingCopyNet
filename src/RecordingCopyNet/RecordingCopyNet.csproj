@@ -10,6 +10,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="RecordingCopyNet.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.86" />
     <PackageReference Include="Google.Apis.Auth" Version="1.76.0" />
     <PackageReference Include="Google.Apis.Drive.v3" Version="1.76.0.4261" />

@@ -31,6 +31,13 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.EventDedupTracker>();
 builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.TransferQueue>();
 
+builder.Services.AddSingleton<RecordingCopyNet.Services.SseBroadcastHub>();
+builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.ZoomWsMessageRouter>();
+builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.ZoomWebSocketListener>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RecordingCopyNet.Services.Zoom.ZoomWebSocketListener>());
+builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.IZoomWebSocketController>(sp =>
+    sp.GetRequiredService<RecordingCopyNet.Services.Zoom.ZoomWebSocketListener>());
+
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
     var port = context.Configuration.GetSection("AppConfig")["Port"];
