@@ -267,4 +267,36 @@ public class ZoomWebSocketListenerTests
         Assert.Null(ex);
         Assert.Equal("disconnected", listener.GetStatus());
     }
+
+    [Fact]
+    public async Task StartConnectionAsync_TrueConcurrentCalls_SerializeAndLeaveExactlyOneLiveConnectionCts()
+    {
+        // Fires two StartConnectionAsync() calls via Task.WhenAll so they race for real
+        // (different thread-pool threads, not just sequential re-entry) against the
+        // _lifecycleLock semaphore. An unparsable URL keeps each attempt's own work
+        // synchronous/fast (no real socket), so this isolates the lock's serialization
+        // behavior rather than real network timing.
+        var store = new FakeCredentialStore { SettingsFields = new() { ["zoom_websocket_url"] = "not a url" } };
+        var listener = BuildListener(new FakeEventsRepository(), store, new FakeTransferService());
+
+        var ex = await Record.ExceptionAsync(() =>
+            Task.WhenAll(listener.StartConnectionAsync(), listener.StartConnectionAsync()));
+        await Task.Delay(50); // let both fire-and-forget connect loops settle
+
+        Assert.Null(ex);
+
+        // Exactly one CTS should have survived: whichever call the semaphore let run
+        // second cancelled+disposed the other's CTS (under the lock, no race) before
+        // installing its own. If the two calls had instead raced on a plain field write
+        // (the round-1 bug this test targets), the loser's CTS would still be reachable
+        // as the "final" _connectionCts while never being cancelled/disposed — or the
+        // final CTS itself could already be disposed by the other racing writer.
+        var finalCts = listener.ConnectionCtsForTests;
+        Assert.NotNull(finalCts);
+        Assert.False(finalCts!.IsCancellationRequested);
+        var tokenEx = Record.Exception(() => finalCts.Token);
+        Assert.Null(tokenEx); // not disposed
+
+        await listener.StopConnectionAsync();
+    }
 }

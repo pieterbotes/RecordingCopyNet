@@ -39,6 +39,16 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _connectionCts;
 
+    // Async-safe mutex serializing Start/Stop/Restart against each other. A plain `lock`
+    // can't be held across an `await` (which both the socket-close in StopConnectionAsync
+    // and awaiting the connect loop's completion need), so a SemaphoreSlim(1,1) stands in
+    // for one. Without this, two truly concurrent Start calls (e.g. two overlapping
+    // POST /api/zoom/websocket/start requests) could each pass a plain field
+    // read/cancel/dispose of _connectionCts and race on installing the new one, silently
+    // orphaning a live connection loop + socket.
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private Task? _connectionLoopTask;
+
     public ZoomWebSocketListener(
         IZoomAuthService zoomAuth, IZoomRecordingsService zoomRecordings, ITransferService transferService,
         ICredentialStore credentialStore, IEventsRepository eventsRepo, ZoomWsMessageRouter router,
@@ -89,68 +99,102 @@ public class ZoomWebSocketListener : BackgroundService, IZoomWebSocketController
     // Test seam only (see HandleRawMessageAsync's header comment for the pattern):
     // lets tests confirm StartConnectionAsync's idempotency guard actually swaps in a
     // fresh CancellationTokenSource and cancels+disposes the previous one, without
-    // needing a real socket.
+    // needing a real socket. Reads without the lock are fine for tests, which only ever
+    // read this after their own Start/Stop calls have completed.
     internal CancellationTokenSource? ConnectionCtsForTests => _connectionCts;
 
-    public Task StartConnectionAsync()
+    public async Task StartConnectionAsync()
     {
-        // Idempotency guard: cancel+dispose any previous connection attempt/loop before
-        // starting a new one, so calling this twice without an intervening
-        // StopConnectionAsync can never leave two live ConnectLoopAsync chains running.
-        var previous = Interlocked.Exchange(ref _connectionCts, null);
-        if (previous != null) { previous.Cancel(); previous.Dispose(); }
-
-        IReadOnlyDictionary<string, string?>? settings;
+        await _lifecycleLock.WaitAsync();
         try
         {
-            settings = _credentialStore.Load(CredentialType.Settings);
-        }
-        catch (Exception ex)
-        {
-            Debug($"Failed to read settings: {ex.Message}");
-            SetStatus("disconnected");
-            return Task.CompletedTask;
-        }
+            // Idempotency guard: cancel+dispose any previous connection attempt/loop before
+            // starting a new one, so calling this twice — even from two truly concurrent
+            // callers — can never leave two live ConnectLoopAsync chains running. A plain
+            // read/cancel/dispose is safe here (no Interlocked needed) because
+            // _lifecycleLock serializes all Start/Stop access to _connectionCts.
+            if (_connectionCts != null)
+            {
+                _connectionCts.Cancel();
+                _connectionCts.Dispose();
+                _connectionCts = null;
+            }
 
-        var wsUrl = settings != null && settings.TryGetValue("zoom_websocket_url", out var url) ? url : null;
-        if (string.IsNullOrEmpty(wsUrl))
-        {
-            Debug("No WebSocket URL configured, skipping");
-            SetStatus("disconnected");
-            return Task.CompletedTask;
-        }
+            IReadOnlyDictionary<string, string?>? settings;
+            try
+            {
+                settings = _credentialStore.Load(CredentialType.Settings);
+            }
+            catch (Exception ex)
+            {
+                Debug($"Failed to read settings: {ex.Message}");
+                SetStatus("disconnected");
+                return;
+            }
 
-        var generation = Interlocked.Increment(ref _generation);
-        _connectionCts = new CancellationTokenSource();
-        _ = ConnectLoopAsync(wsUrl, generation, _connectionCts.Token); // errors are handled inside the loop
-        return Task.CompletedTask;
+            var wsUrl = settings != null && settings.TryGetValue("zoom_websocket_url", out var url) ? url : null;
+            if (string.IsNullOrEmpty(wsUrl))
+            {
+                Debug("No WebSocket URL configured, skipping");
+                SetStatus("disconnected");
+                return;
+            }
+
+            var generation = Interlocked.Increment(ref _generation);
+            _connectionCts = new CancellationTokenSource();
+            _connectionLoopTask = ConnectLoopAsync(wsUrl, generation, _connectionCts.Token); // errors are handled inside the loop
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
     }
 
     public async Task StopConnectionAsync()
     {
-        Interlocked.Increment(ref _generation); // invalidates any in-flight reconnect attempt
-        _connectionCts?.Cancel();
-        _connectionCts?.Dispose();
-        _connectionCts = null;
-
-        var ws = _ws;
-        _ws = null;
-        if (ws != null)
+        await _lifecycleLock.WaitAsync();
+        try
         {
-            try
-            {
-                if (ws.State == WebSocketState.Open)
-                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Stopping", CancellationToken.None);
-                else if (ws.State == WebSocketState.Connecting)
-                    ws.Abort(); // .NET analogue of ws.terminate() for a socket still mid-handshake (spec §9, docs §10)
-            }
-            catch { /* best-effort teardown */ }
-            finally { ws.Dispose(); }
-        }
+            Interlocked.Increment(ref _generation); // invalidates any in-flight reconnect attempt
+            _connectionCts?.Cancel();
 
-        SetStatus("disconnected");
-        _connectedAt = null;
-        Debug("Stopped");
+            var ws = _ws;
+            _ws = null;
+            if (ws != null)
+            {
+                try
+                {
+                    if (ws.State == WebSocketState.Open)
+                        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Stopping", CancellationToken.None);
+                    else if (ws.State == WebSocketState.Connecting)
+                        ws.Abort(); // .NET analogue of ws.terminate() for a socket still mid-handshake (spec §9, docs §10)
+                }
+                catch { /* best-effort teardown */ }
+                finally { ws.Dispose(); }
+            }
+
+            // Wait for the loop to actually observe cancellation and return before
+            // disposing its CTS — disposing while the loop might still be touching the
+            // token (e.g. inside Task.Delay(ct)) risks an unobserved ObjectDisposedException
+            // that would kill the loop silently instead of via its normal, logged paths.
+            if (_connectionLoopTask != null)
+            {
+                try { await _connectionLoopTask; }
+                catch { /* the loop already handles and logs its own errors */ }
+            }
+
+            _connectionCts?.Dispose();
+            _connectionCts = null;
+            _connectionLoopTask = null;
+
+            SetStatus("disconnected");
+            _connectedAt = null;
+            Debug("Stopped");
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
     }
 
     public async Task RestartConnectionAsync()
