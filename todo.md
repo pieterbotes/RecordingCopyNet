@@ -1,0 +1,35 @@
+> WORKFLOW: Plan → Approve → Implement (small changes) → Test → Mark complete
+> PLAN: .claude/plans/recordingcopy-dotnet-port.md
+
+Full task detail: `docs/superpowers/plans/2026-09-21-recordingcopy-dotnet-port.md`
+
+## Tasks
+
+- [ ] Task 1: Solution scaffolding, AppConfig, minimal host
+- [ ] Task 2: SQLite schema (Db.cs)
+- [ ] Task 3: Credential encryption and store (CredentialStore)
+- [ ] Task 4: EventsRepository
+- [ ] Task 5: RequestsRepository
+- [ ] Task 6: ZoomAuthService
+- [ ] Task 7: ZoomRecordingsService
+- [ ] Task 8: ZoomDownloadService
+- [ ] Task 9: Google Drive integration (GoogleAuthService + GoogleDriveService)
+- [ ] Task 10: TransferService
+- [ ] Task 11: ZoomWsMessageRouter
+- [ ] Task 12: EventDedupTracker
+- [ ] Task 13: TransferQueue
+- [ ] Task 14: SseBroadcastHub
+- [ ] Task 15: ZoomWebSocketListener (BackgroundService glue)
+- [ ] Task 16: SseWriter, AppVersion, CredentialsController, VersionController, SettingsController
+- [ ] Task 17: ZoomController
+- [ ] Task 18: GoogleController
+- [ ] Task 19: TransferController
+- [ ] Task 20: EventsController
+- [ ] Task 21: RequestsController
+- [ ] Task 22: Port the frontend (public/ → wwwroot/)
+- [ ] Task 23: Windows Service hosting
+- [ ] Task 24: README, final full-suite verification, manual end-to-end smoke test
+
+## Review
+
+(Fill in after implementation: summary of what changed, deviations from the plan, and manual smoke-test results from Task 24.)
