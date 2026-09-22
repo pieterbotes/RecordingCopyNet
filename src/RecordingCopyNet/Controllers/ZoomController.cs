@@ -77,10 +77,26 @@ public class ZoomController : ControllerBase
             transfers = info.Transfers, log = info.Log, url,
         }, ct);
 
+        // The debug-log subscription callback and the periodic keep-alive ping below both
+        // write to this SAME HttpResponse.Body from potentially concurrent contexts (a
+        // broadcast can fire at any time relative to the 30s ping timer). Two concurrent
+        // writes to one Kestrel response body can throw, and SseBroadcastHub's
+        // catch-and-evict logic then silently drops this subscriber — losing the live
+        // debug log exactly when it's busiest. Serialize the two writers against each other.
+        using var writeLock = new SemaphoreSlim(1, 1);
+
         using var subscription = _ws.SubscribeDebugLog(async frame =>
         {
-            await Response.WriteAsync(frame, ct);
-            await Response.Body.FlushAsync(ct);
+            await writeLock.WaitAsync(ct);
+            try
+            {
+                await Response.WriteAsync(frame, ct);
+                await Response.Body.FlushAsync(ct);
+            }
+            finally
+            {
+                writeLock.Release();
+            }
         });
 
         try
@@ -88,7 +104,15 @@ public class ZoomController : ControllerBase
             while (!ct.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(30), ct);
-                await SseWriter.WriteCommentAsync(Response, "ping", ct);
+                await writeLock.WaitAsync(ct);
+                try
+                {
+                    await SseWriter.WriteCommentAsync(Response, "ping", ct);
+                }
+                finally
+                {
+                    writeLock.Release();
+                }
             }
         }
         catch (OperationCanceledException)
@@ -104,7 +128,12 @@ public class ZoomController : ControllerBase
     public async Task<ActionResult<string>> Stop()
     {
         await _ws.StopConnectionAsync();
-        return Ok(_ws.GetStatus());
+        // A bare `string` return value from Ok(...) gets picked up by MVC's
+        // StringOutputFormatter ahead of the JSON formatter, producing
+        // `Content-Type: text/plain` with an unquoted body — not the JSON string
+        // the original Node app returns (res.json(getWsStatus())) and that
+        // public/js/api.js's `await res.json()` requires. JsonResult forces JSON.
+        return new JsonResult(_ws.GetStatus());
     }
 
     [HttpPost("websocket/start")]
@@ -112,7 +141,7 @@ public class ZoomController : ControllerBase
     {
         await _ws.StopConnectionAsync();
         await _ws.StartConnectionAsync();
-        return Ok(_ws.GetStatus());
+        return new JsonResult(_ws.GetStatus());
     }
 
     [HttpPost("websocket/restart")]

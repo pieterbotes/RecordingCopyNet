@@ -121,24 +121,27 @@ public class ZoomControllerTests
     }
 
     [Fact]
-    public async Task Stop_ReturnsBareStatusString()
+    public async Task Stop_ReturnsJsonResult_NotBareTextPlainString()
     {
+        // Regression test for the content-negotiation bug: Ok(string) would previously
+        // pick StringOutputFormatter (text/plain), which public/js/api.js's
+        // `await res.json()` can't parse. JsonResult forces JSON serialization.
         var ws = new TrackingWsController();
         var controller = Build(ws: ws);
         var result = await controller.Stop();
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        Assert.Equal("disconnected", ok.Value);
+        var json = Assert.IsType<JsonResult>(result.Result);
+        Assert.Equal("disconnected", json.Value);
         Assert.True(ws.StopCalled);
     }
 
     [Fact]
-    public async Task Start_StopsThenStarts_AndReturnsBareStatusString()
+    public async Task Start_StopsThenStarts_AndReturnsJsonResult()
     {
         var ws = new TrackingWsController();
         var controller = Build(ws: ws);
         var result = await controller.Start();
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        Assert.Equal("connected", ok.Value);
+        var json = Assert.IsType<JsonResult>(result.Result);
+        Assert.Equal("connected", json.Value);
         Assert.True(ws.StopCalled);
         Assert.True(ws.StartCalled);
     }
