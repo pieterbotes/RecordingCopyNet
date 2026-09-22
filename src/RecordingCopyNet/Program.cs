@@ -1,9 +1,12 @@
 using RecordingCopyNet.Config;
+using RecordingCopyNet.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
 builder.Services.PostConfigure<AppConfig>(cfg => cfg.ResolvePaths(AppContext.BaseDirectory));
+
+builder.Services.AddSingleton<Db>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
@@ -15,6 +18,8 @@ builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.PropertyNamingPolicy = null);
 
 var app = builder.Build();
+
+app.Services.GetRequiredService<Db>().InitializeSchema();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
