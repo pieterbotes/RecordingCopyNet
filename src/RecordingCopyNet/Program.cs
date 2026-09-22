@@ -4,6 +4,11 @@ using RecordingCopyNet.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseWindowsService(options =>
+{
+    options.ServiceName = "RecordingCopyNet";
+});
+
 builder.Services.Configure<AppConfig>(builder.Configuration.GetSection("AppConfig"));
 builder.Services.PostConfigure<AppConfig>(cfg => cfg.ResolvePaths(AppContext.BaseDirectory));
 

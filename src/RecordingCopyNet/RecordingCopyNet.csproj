@@ -18,6 +18,7 @@
     <PackageReference Include="Google.Apis.Auth" Version="1.76.0" />
     <PackageReference Include="Google.Apis.Drive.v3" Version="1.76.0.4261" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
   </ItemGroup>
 
 </Project>
