@@ -1,6 +1,6 @@
 # RecordingCopyNet
 
-ASP.NET Core 8 port of [RecordingCopy](https://github.com/) — automates transferring
+ASP.NET Core 8 port of [RecordingCopy](https://github.com/) automates transferring
 Zoom cloud recordings to Google Drive, either automatically (via a Zoom WebSocket
 event subscription) or on demand (manual browse, or a public "request a transfer"
 form).
