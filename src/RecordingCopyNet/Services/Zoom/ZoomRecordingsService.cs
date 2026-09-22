@@ -10,6 +10,10 @@ namespace RecordingCopyNet.Services.Zoom;
 // Direct port of lib/zoom/recordings.js.
 public class ZoomRecordingsService : IZoomRecordingsService
 {
+    // Parsed once and reused for the empty-meetings-array fallback path instead of
+    // calling JsonDocument.Parse("[]") (and leaking its pooled buffer) on every call.
+    private static readonly JsonElement EmptyArray = JsonDocument.Parse("[]").RootElement;
+
     private readonly HttpClient _http;
     private readonly IZoomAuthService _auth;
     private readonly AppConfig _config;
@@ -31,7 +35,7 @@ public class ZoomRecordingsService : IZoomRecordingsService
         var url = $"{_config.ZoomApiBase}/users/{Uri.EscapeDataString(userId)}/recordings?{query}";
         var json = await SendAuthorizedAsync(url, ct);
 
-        return json.TryGetProperty("meetings", out var meetings) ? meetings : JsonDocument.Parse("[]").RootElement;
+        return json.TryGetProperty("meetings", out var meetings) ? meetings : EmptyArray;
     }
 
     public async Task<ZoomMeetingRecordings> GetMeetingRecordingsAsync(string meetingId, CancellationToken ct = default)
