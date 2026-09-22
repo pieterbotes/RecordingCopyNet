@@ -69,6 +69,31 @@ public class CredentialStoreTests : IDisposable
         Assert.Equal("b@x.com", loaded!["default_zoom_user"]);
     }
 
+    [Fact]
+    public void Save_PartialUpdate_DoesNotClobberPreviousFields()
+    {
+        // Save all Zoom fields
+        _store.Save(CredentialType.Zoom, new Dictionary<string, string?>
+        {
+            ["account_id"] = "acct-123",
+            ["client_id"] = "client-abc",
+            ["client_secret"] = "secret-xyz",
+        });
+
+        // Partial update: only client_secret (e.g., credential rotation)
+        _store.Save(CredentialType.Zoom, new Dictionary<string, string?>
+        {
+            ["client_secret"] = "rotated-secret",
+        });
+
+        // Verify account_id and client_id are still present, not clobbered to NULL
+        var loaded = _store.Load(CredentialType.Zoom);
+        Assert.NotNull(loaded);
+        Assert.Equal("acct-123", loaded!["account_id"]);
+        Assert.Equal("client-abc", loaded["client_id"]);
+        Assert.Equal("rotated-secret", loaded["client_secret"]);
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();

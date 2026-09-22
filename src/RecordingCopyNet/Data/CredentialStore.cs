@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using RecordingCopyNet.Security;
 
 namespace RecordingCopyNet.Data;
@@ -10,7 +11,7 @@ public class CredentialStore : ICredentialStore
 {
     private readonly Db _db;
     private readonly IFieldCipher _cipher;
-    private readonly HashSet<CredentialType> _migrated = new();
+    private readonly ConcurrentDictionary<CredentialType, byte> _migrated = new();
 
     public CredentialStore(Db db, IFieldCipher cipher)
     {
@@ -28,6 +29,7 @@ public class CredentialStore : ICredentialStore
 
         var columns = new List<string> { "id" };
         var placeholders = new List<string> { "1" };
+        var updateClauses = new List<string>();
         using var cmd = conn.CreateCommand();
 
         foreach (var def in CredentialSchema.Fields[type])
@@ -37,10 +39,13 @@ public class CredentialStore : ICredentialStore
             columns.Add(column);
             var paramName = $"@{column}";
             placeholders.Add(paramName);
+            updateClauses.Add($"{column} = excluded.{column}");
             cmd.Parameters.AddWithValue(paramName, def.Encrypted ? _cipher.Encrypt(value) : value);
         }
 
-        cmd.CommandText = $"INSERT OR REPLACE INTO {table} ({string.Join(", ", columns)}) VALUES ({string.Join(", ", placeholders)})";
+        var insertClause = $"INSERT INTO {table} ({string.Join(", ", columns)}) VALUES ({string.Join(", ", placeholders)})";
+        var conflictClause = string.Join(", ", updateClauses);
+        cmd.CommandText = $"{insertClause} ON CONFLICT(id) DO UPDATE SET {conflictClause}";
         cmd.ExecuteNonQuery();
     }
 
@@ -77,7 +82,7 @@ public class CredentialStore : ICredentialStore
 
     private void EnsureColumns(CredentialType type)
     {
-        if (!_migrated.Add(type)) return;
+        if (!_migrated.TryAdd(type, 0)) return;
         var table = CredentialSchema.TableName(type);
         using var conn = _db.CreateOpenConnection();
 
