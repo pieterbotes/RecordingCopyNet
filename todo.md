@@ -10,7 +10,7 @@ Full task detail: `docs/superpowers/plans/2026-09-21-recordingcopy-dotnet-port.m
 - [x] Task 3: Credential encryption and store (CredentialStore)
 - [x] Task 4: EventsRepository
 - [x] Task 5: RequestsRepository
-- [ ] Task 6: ZoomAuthService
+- [x] Task 6: ZoomAuthService
 - [ ] Task 7: ZoomRecordingsService
 - [ ] Task 8: ZoomDownloadService
 - [ ] Task 9: Google Drive integration (GoogleAuthService + GoogleDriveService)
