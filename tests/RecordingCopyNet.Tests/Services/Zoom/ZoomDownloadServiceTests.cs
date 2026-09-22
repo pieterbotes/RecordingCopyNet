@@ -56,6 +56,22 @@ public class ZoomDownloadServiceTests : IDisposable
         Assert.Equal(Path.Combine(_tempDir, "meeting-123"), dir);
     }
 
+    [Fact]
+    public void GetTempDir_SanitizesPathTraversalAndIllegalCharacters()
+    {
+        // Defense-in-depth regression test for finding #14: a meetingId containing path
+        // separators or ".." must not be able to escape the configured temp dir.
+        var service = new ZoomDownloadService(new HttpClient(), new FakeZoomAuthService(), Options.Create(new AppConfig { TempDir = _tempDir }));
+
+        var dir = service.GetTempDir("../../evil");
+        var fullDir = Path.GetFullPath(dir);
+
+        // Resolves to a single segment directly under the configured temp dir, not
+        // above or outside it.
+        Assert.StartsWith(Path.GetFullPath(_tempDir) + Path.DirectorySeparatorChar, fullDir);
+        Assert.DoesNotContain("..", Path.GetFileName(dir));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir)) Directory.Delete(_tempDir, recursive: true);

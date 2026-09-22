@@ -35,5 +35,21 @@ public class ZoomDownloadService : IZoomDownloadService
         await sourceStream.CopyToAsync(fileStream, ct);
     }
 
-    public string GetTempDir(string meetingId) => Path.Combine(_config.TempDir, meetingId);
+    public string GetTempDir(string meetingId) => Path.Combine(_config.TempDir, SanitizeMeetingId(meetingId));
+
+    // Defense-in-depth: `meetingId` ends up as a filesystem path segment that's later
+    // recursively deleted (see TransferService.GetTempDir usage). Not currently
+    // exploitable in practice (a real Zoom meeting fetch has to succeed first), but
+    // strips filesystem-illegal characters and neutralizes ".." path-traversal
+    // sequences, matching the sanitization already applied to Drive folder names
+    // (SanitizeFolderName in TransferService).
+    private static string SanitizeMeetingId(string meetingId)
+    {
+        if (string.IsNullOrEmpty(meetingId)) return meetingId;
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new System.Text.StringBuilder(meetingId.Length);
+        foreach (var c in meetingId)
+            sanitized.Append(invalid.Contains(c) ? '_' : c);
+        return sanitized.ToString().Replace("..", "__");
+    }
 }
