@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RecordingCopy</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>RecordingCopy <span class="version" id="version"></span></h1>
+      <nav>
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/">Recordings</a>
+        <a href="/request.html">Request</a>
+        <a href="/audit.html">Audit</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+    <div id="ws-header-status" class="ws-status ws-disconnected" title="Zoom WebSocket">
+      <span class="ws-dot"></span>
+      <span class="ws-label">Disconnected</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Controls -->
+    <div class="card">
+      <div class="controls">
+        <div class="form-group" style="flex:2">
+          <label>Zoom User Email</label>
+          <input type="email" id="user-email" placeholder="user@example.com">
+        </div>
+        <div class="form-group">
+          <label>From</label>
+          <input type="date" id="date-from">
+        </div>
+        <div class="form-group">
+          <label>To</label>
+          <input type="date" id="date-to">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="fetch-btn" onclick="fetchRecordings()">Fetch Recordings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recording list -->
+    <div id="recordings-section" style="display:none">
+      <div class="select-bar">
+        <label>
+          <input type="checkbox" id="select-all" onchange="toggleSelectAll()">
+          Select All (<span id="recording-count">0</span> meetings)
+        </label>
+        <button class="btn btn-primary" id="transfer-btn" onclick="transferSelected()">
+          Transfer Selected to Google Drive
+        </button>
+      </div>
+      <div id="recording-list"></div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="empty-state">
+      <p>Enter a Zoom user email and date range, then click Fetch Recordings.</p>
+    </div>
+
+    <!-- Transfer log -->
+    <div id="transfer-section" class="card" style="display:none">
+      <h2>Transfer Log</h2>
+      <div class="transfer-log" id="transfer-log"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

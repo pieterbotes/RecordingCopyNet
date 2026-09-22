@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - RecordingCopy</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>RecordingCopy <span class="version" id="version"></span></h1>
+      <nav>
+        <a href="/dashboard.html" class="active">Dashboard</a>
+        <a href="/">Recordings</a>
+        <a href="/request.html">Request</a>
+        <a href="/audit.html">Audit</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+    <div id="ws-header-status" class="ws-status ws-disconnected" title="Zoom WebSocket">
+      <span class="ws-dot"></span>
+      <span class="ws-label">Disconnected</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Stats bar -->
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-label">Total Events</div>
+      </div>
+      <div class="stat-card stat-completed">
+        <div class="stat-value" id="stat-completed">0</div>
+        <div class="stat-label">Completed</div>
+      </div>
+      <div class="stat-card stat-failed">
+        <div class="stat-value" id="stat-failed">0</div>
+        <div class="stat-label">Failed</div>
+      </div>
+      <div class="stat-card stat-skipped">
+        <div class="stat-value" id="stat-skipped">0</div>
+        <div class="stat-label">Skipped</div>
+      </div>
+    </div>
+
+    <!-- Event list view -->
+    <div id="event-list-view">
+      <div id="event-list"></div>
+      <div id="empty-state" class="empty-state">
+        <p>No events yet. Events will appear here when WebSocket recordings are received.</p>
+      </div>
+      <div id="load-more-wrap" style="text-align:center; margin:16px 0; display:none;">
+        <button class="btn btn-outline" id="load-more-btn" onclick="loadMore()">Load More</button>
+      </div>
+    </div>
+
+    <!-- Event detail view -->
+    <div id="event-detail-view" style="display:none">
+      <button class="btn btn-outline" onclick="closeDetail()" style="margin-bottom:12px">&larr; Back to list</button>
+      <div class="card" id="detail-info"></div>
+      <div id="detail-log-section" class="card" style="display:none">
+        <h2>Transfer Log</h2>
+        <div class="transfer-log" id="detail-log"></div>
+      </div>
+      <div id="detail-payload-section" class="card" style="display:none">
+        <h2 style="cursor:pointer" onclick="togglePayload()">Raw Payload <span id="payload-toggle" style="font-size:0.8rem;color:var(--text-light)">[show]</span></h2>
+        <pre class="payload-pre" id="detail-payload" style="display:none"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

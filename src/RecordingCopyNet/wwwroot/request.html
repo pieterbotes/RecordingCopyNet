@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Request Transfer - RecordingCopy</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>RecordingCopy <span class="version" id="version"></span></h1>
+      <nav>
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/">Recordings</a>
+        <a href="/request.html" class="active">Request</a>
+        <a href="/audit.html">Audit</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+    <div id="ws-header-status" class="ws-status ws-disconnected" title="Zoom WebSocket">
+      <span class="ws-dot"></span>
+      <span class="ws-label">Disconnected</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2>Request Recording Transfer</h2>
+      <form id="request-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Name *</label>
+            <input type="text" id="req-name" required placeholder="First name">
+          </div>
+          <div class="form-group">
+            <label>Surname *</label>
+            <input type="text" id="req-surname" required placeholder="Last name">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" id="req-email" required placeholder="your@email.com">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Zoom User Email *</label>
+            <input type="email" id="req-zoom-email" required placeholder="Zoom account email">
+          </div>
+          <div class="form-group">
+            <label>Meeting Date *</label>
+            <input type="date" id="req-meeting-date" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Meeting *</label>
+          <select id="req-meeting-id" required disabled>
+            <option value="">Select a date and Zoom email first</option>
+          </select>
+          <div id="meeting-fetch-status" style="font-size:0.8rem; color:var(--text-light); margin-top:4px;"></div>
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <textarea id="req-reason" placeholder="Why is this transfer needed?" style="min-height:60px"></textarea>
+        </div>
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary" id="submit-btn">Submit Request</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="progress-section" class="card" style="display:none">
+      <h2>Transfer Progress</h2>
+      <div class="transfer-log" id="transfer-log"></div>
+      <div id="result-msg" class="status-msg" style="display:none; margin-top:12px"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/request.js"></script>
+</body>
+</html>

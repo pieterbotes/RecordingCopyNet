@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit Log - RecordingCopy</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>RecordingCopy <span class="version" id="version"></span></h1>
+      <nav>
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/">Recordings</a>
+        <a href="/request.html">Request</a>
+        <a href="/audit.html" class="active">Audit</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+    <div id="ws-header-status" class="ws-status ws-disconnected" title="Zoom WebSocket">
+      <span class="ws-dot"></span>
+      <span class="ws-label">Disconnected</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2>Transfer Request Audit Log</h2>
+      <div id="audit-table-wrap">
+        <table class="audit-table" id="audit-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Meeting ID</th>
+              <th>Reason</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="audit-body"></tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="empty-state" style="display:none">
+        <p>No transfer requests yet.</p>
+      </div>
+      <div id="load-more-wrap" style="text-align:center; margin:16px 0; display:none;">
+        <button class="btn btn-outline" id="load-more-btn" onclick="loadMore()">Load More</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/audit.js"></script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - RecordingCopy</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>RecordingCopy <span class="version" id="version"></span></h1>
+      <nav>
+        <a href="/dashboard.html">Dashboard</a>
+        <a href="/">Recordings</a>
+        <a href="/request.html">Request</a>
+        <a href="/audit.html">Audit</a>
+        <a href="/settings.html">Settings</a>
+      </nav>
+    </div>
+    <div id="ws-header-status" class="ws-status ws-disconnected" title="Zoom WebSocket">
+      <span class="ws-dot"></span>
+      <span class="ws-label">Disconnected</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Zoom Credentials -->
+    <div class="card">
+      <h2>Zoom S2S Credentials <span id="zoom-status" class="status"></span></h2>
+
+      <details class="setup-guide">
+        <summary>Setup instructions</summary>
+        <div class="guide-content">
+          <ol>
+            <li>Go to the <a href="https://marketplace.zoom.us" target="_blank">Zoom App Marketplace</a> and sign in.</li>
+            <li>Click <strong>Develop &rarr; Build App</strong>, then choose <strong>Server-to-Server OAuth</strong>.</li>
+            <li>Give the app a name and click <strong>Create</strong>.</li>
+            <li>Copy the <strong>Account ID</strong>, <strong>Client ID</strong>, and <strong>Client Secret</strong> from the app credentials page.</li>
+            <li>Under <strong>Scopes</strong>, add: <code>cloud_recording:read:list_user_recordings:admin</code> and <code>cloud_recording:read:list_recording_files:admin</code>.</li>
+            <li>Click <strong>Activate</strong> to enable the app.</li>
+          </ol>
+        </div>
+      </details>
+
+      <div class="form-group">
+        <label>Account ID</label>
+        <input type="text" id="zoom-account-id" placeholder="Your Zoom Account ID">
+      </div>
+      <div class="form-group">
+        <label>Client ID</label>
+        <input type="text" id="zoom-client-id" placeholder="S2S OAuth Client ID">
+      </div>
+      <div class="form-group">
+        <label>Client Secret</label>
+        <input type="password" id="zoom-client-secret" placeholder="S2S OAuth Client Secret">
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveZoom()">Save</button>
+        <button class="btn btn-outline" onclick="testZoom()">Test Connection</button>
+        <button class="btn btn-danger" onclick="clearZoom()">Clear</button>
+      </div>
+      <div id="zoom-msg" class="status-msg" style="display:none"></div>
+
+      <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border);">
+
+      <h3 style="font-size: 1rem; margin-bottom: 8px;">Auto-Transfer (WebSocket)
+        <span id="ws-status" class="status status-none" style="margin-left: 8px;">Disconnected</span>
+        <button class="btn btn-outline btn-sm" id="ws-toggle-btn" style="margin-left: 8px;" onclick="toggleWebSocket()">Start</button>
+      </h3>
+
+      <details class="setup-guide">
+        <summary>WebSocket setup instructions</summary>
+        <div class="guide-content">
+          <ol>
+            <li>In the <a href="https://marketplace.zoom.us" target="_blank">Zoom Marketplace</a>, open your S2S OAuth app.</li>
+            <li>Go to <strong>Feature &rarr; Event Subscriptions</strong>.</li>
+            <li>Toggle <strong>Event subscription</strong> on and choose <strong>WebSocket</strong> method.</li>
+            <li>Give it a name (e.g., "RecordingCopy").</li>
+            <li>Click <strong>Add Events &rarr; Recording &rarr; All Recordings have completed</strong> (<code>recording.completed</code>).</li>
+            <li>Click <strong>Save</strong> — copy the <strong>WebSocket Endpoint URL</strong> shown (format: <code>wss://ws.zoom.us/ws?subscriptionId=XXX</code>).</li>
+            <li>Paste it into the field below and click <strong>Save</strong>.</li>
+          </ol>
+        </div>
+      </details>
+
+      <div class="form-group">
+        <label>WebSocket Endpoint URL</label>
+        <input type="text" id="zoom-ws-url" placeholder="wss://ws.zoom.us/ws?subscriptionId=...">
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveWebSocket()">Save</button>
+        <button class="btn btn-danger" onclick="clearWebSocket()">Clear</button>
+      </div>
+      <div id="ws-msg" class="status-msg" style="display:none"></div>
+
+      <div style="margin-top:16px">
+        <h3 style="font-size:1rem; margin-bottom:8px;">
+          WebSocket Debug Log
+          <button class="btn btn-outline" style="margin-left:8px; font-size:0.8rem; padding:3px 10px;" onclick="refreshWsStatus()">Refresh</button>
+        </h3>
+        <div id="ws-counters" style="font-size:0.8rem; color:var(--text-light); margin-bottom:8px;"></div>
+        <div class="transfer-log" id="ws-debug-log" style="max-height:250px;">
+          <div class="log-line" style="color:#888">Click "Refresh" to load debug log...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Google Service Account -->
+    <div class="card">
+      <h2>Google Service Account <span id="google-status" class="status"></span></h2>
+
+      <details class="setup-guide">
+        <summary>Setup instructions</summary>
+        <div class="guide-content">
+          <ol>
+            <li>Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> and create a new project (or select an existing one).</li>
+            <li>Navigate to <strong>APIs &amp; Services &rarr; Library</strong>, search for <strong>Google Drive API</strong>, and click <strong>Enable</strong>.</li>
+            <li>Go to <strong>APIs &amp; Services &rarr; Credentials</strong>, click <strong>Create Credentials &rarr; Service Account</strong>. Give it a name and click <strong>Create and Continue</strong>. Skip the optional steps.</li>
+            <li>Click on the new service account, go to the <strong>Keys</strong> tab, and click <strong>Add Key &rarr; Create new key &rarr; JSON</strong>. A <code>.json</code> file will download.</li>
+            <li>Open the downloaded JSON file and paste its <em>entire contents</em> into the field below.</li>
+            <li>In Google Drive, right-click your target folder &rarr; <strong>Share</strong>. Paste the service account's <code>client_email</code> (found in the JSON, looks like <code>name@project.iam.gserviceaccount.com</code>) and set the role to <strong>Editor</strong>. For a Shared Drive, add it as a <strong>Content Manager</strong>.</li>
+            <li>Copy the <strong>Folder ID</strong> from the Drive folder URL:<br><code>https://drive.google.com/drive/folders/<strong>&lt;FOLDER_ID&gt;</strong></code></li>
+          </ol>
+          <h4 style="margin:12px 0 4px">Domain-Wide Delegation (alternative to Shared Drives)</h4>
+          <p style="font-size:0.85rem; margin:0 0 6px; color:var(--text-light)">If you don't have a Shared Drive, you can have the service account impersonate a real user:</p>
+          <ol>
+            <li>In <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a>, go to your service account → <strong>Details</strong>. Note the <strong>Client ID</strong> (numeric).</li>
+            <li>In the <a href="https://admin.google.com" target="_blank">Google Admin Console</a>, go to <strong>Security → Access and data control → API Controls</strong>, then click <strong>Manage Domain Wide Delegation</strong>.</li>
+            <li>Click <strong>Add new</strong>. Enter the Client ID and the scope: <code>https://www.googleapis.com/auth/drive</code></li>
+            <li>Enter the email of the user to impersonate in the field below (must be a user in your domain).</li>
+          </ol>
+        </div>
+      </details>
+
+      <div id="google-creds-section">
+        <div class="form-group">
+          <label>Service Account JSON Key (paste entire JSON)</label>
+          <textarea id="google-json" placeholder='Paste the full JSON key file contents here...'></textarea>
+        </div>
+        <p style="font-size:0.8rem; color:var(--text-light); margin: 4px 0 8px;">
+          Or enter fields manually:
+        </p>
+        <div class="form-group">
+          <label>Project ID</label>
+          <input type="text" id="google-project-id" placeholder="my-project-123">
+        </div>
+        <div class="form-group">
+          <label>Client Email</label>
+          <input type="text" id="google-client-email" placeholder="name@project.iam.gserviceaccount.com">
+        </div>
+        <div class="form-group">
+          <label>Private Key</label>
+          <textarea id="google-private-key" placeholder="-----BEGIN PRIVATE KEY-----\n..." style="min-height:60px; font-family:monospace; font-size:0.8rem;"></textarea>
+        </div>
+      </div>
+      <div id="google-creds-saved" style="display:none">
+        <p style="font-size:0.85rem; color:var(--text-light); margin:0 0 8px;">
+          Service account credentials saved.
+          <a href="#" onclick="showCredentialFields(); return false;" style="font-size:0.85rem;">Change credentials</a>
+        </p>
+      </div>
+      <div class="form-group">
+        <label>Google Drive Folder ID</label>
+        <input type="text" id="google-folder-id" placeholder="Folder ID from the Drive URL">
+      </div>
+      <div class="form-group">
+        <label>Storage Method</label>
+        <select id="google-storage-method" onchange="onStorageMethodChange()">
+          <option value="shared_drive">Shared Drive</option>
+          <option value="delegation">Domain-Wide Delegation (Impersonation)</option>
+        </select>
+      </div>
+      <div id="delegation-fields" style="display:none">
+        <div class="form-group">
+          <label>Impersonation Email</label>
+          <input type="email" id="google-impersonate-email" placeholder="user@yourdomain.com">
+          <p style="font-size:0.75rem; color:var(--text-light); margin:4px 0 0;">
+            The service account impersonates this user for storage quota. Requires Domain-Wide Delegation setup.
+          </p>
+        </div>
+      </div>
+      <div id="shared-drive-fields">
+        <div class="btn-group" style="margin-top:4px">
+          <button class="btn btn-outline btn-sm" onclick="detectDrives()">Detect Shared Drives</button>
+        </div>
+        <div id="drives-list" style="display:none"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveGoogle()">Save</button>
+        <button class="btn btn-outline" onclick="testGoogle()">Test Connection</button>
+        <button class="btn btn-danger" onclick="clearGoogle()">Clear</button>
+      </div>
+      <div id="google-msg" class="status-msg" style="display:none"></div>
+    </div>
+
+    <!-- App Settings -->
+    <div class="card">
+      <h2>App Settings</h2>
+      <div class="form-group">
+        <label>Default Zoom User Email</label>
+        <input type="email" id="default-zoom-user" placeholder="user@example.com">
+        <small class="field-hint">Auto-transfers only this user's recordings. Also pre-fills the Browse and Request pages.</small>
+      </div>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="transfer-all-users" onchange="toggleAllUsers()">
+          <span>Transfer recordings from <strong>all</strong> Zoom users</span>
+        </label>
+        <small class="field-hint">When enabled, every recording in the account is transferred automatically, regardless of who hosted it. The email above is then ignored for auto-transfer (but still pre-fills the other pages).</small>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="saveAppSettings()">Save</button>
+      </div>
+      <div id="settings-msg" class="status-msg" style="display:none"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/settings.js"></script>
+</body>
+</html>
