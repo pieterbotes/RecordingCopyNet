@@ -29,6 +29,7 @@ builder.Services.AddSingleton<RecordingCopyNet.Services.Google.IGoogleDriveServi
 builder.Services.AddSingleton<RecordingCopyNet.Services.ITransferService, RecordingCopyNet.Services.TransferService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.EventDedupTracker>();
+builder.Services.AddSingleton<RecordingCopyNet.Services.Zoom.TransferQueue>();
 
 builder.WebHost.ConfigureKestrel((context, options) =>
 {
